@@ -1,0 +1,348 @@
+---
+- name: Load kernel modules
+  lineinfile:
+    path: /etc/modules-load.d/k8s.conf
+    line: "{{ item }}"
+    create: true
+  loop:
+    - overlay
+    - br_netfilter
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Modprobe overlay and br_netfilter
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Configure sysctl parameters
+  blockinfile:
+    path: /etc/sysctl.d/k8s.conf
+    create: true
+    block: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward                 = 1
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Apply sysctl params without reboot
+  command: sysctl --system
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Disable swap
+  shell: "sudo swapoff -a"
+  ignore_errors: true
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add cron job to disable swap on reboot
+  shell: '(crontab -l 2>/dev/null; echo "@reboot /sbin/swapoff -a") | crontab - || true'
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Set OS and k8s VERSION variables
+  set_fact:
+    OS: "{{ ubuntu_version }}"
+    VERSION: "{{ k8s_version }}"
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add cri-o repositories that follows k8s version
+  blockinfile:
+    path: "/etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list"
+    create: yes
+    block: |
+      deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/{{ OS }}/ /
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add cri-o additional repositories
+  blockinfile:
+    path: "/etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}.list"
+    create: yes
+    block: |
+      deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/{{ VERSION }}/{{ OS }}/ /
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add GPG keys for CRI-O
+  shell: "curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add GPG keys for libcontainers
+  shell: "curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Update apt repositories
+  apt:
+    update_cache: yes
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+#The cri-tools contain crictl, a CLI utility to interact with the containers created by the container runtime
+- name: Install cri-o, cri-o-runc, and cri-tools
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - "cri-o={{ cri_o_version }}"
+    - "cri-o-runc={{ cri_o_runc_version }}"
+    - "cri-tools"
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Reload systemd configurations
+  systemd:
+    name: systemd-journald
+    state: restarted
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+  run_once: true
+
+- name: Enable cri-o service
+  systemd:
+    name: crio
+    enabled: yes
+    state: started
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Install apt-transport-https, ca-certificates, curl
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  loop:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Download GPG key for Kubernetes APT repository
+  shell: "curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://dl.k8s.io/apt/doc/apt-key.gpg"
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add Kubernetes APT repository
+  lineinfile:
+    path: /etc/apt/sources.list.d/kubernetes.list
+    line: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main"
+    create: true
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Update APT repositories
+  apt:
+    update_cache: yes
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+#install kubernetes tools
+- name: Install kubelet, kubectl, and kubeadm
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - "kubelet={{ k8s_packages_version }}"
+    - "kubectl={{ k8s_packages_version }}"
+    - "kubeadm={{ k8s_packages_version }}"
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add hold to kubernetes packages to prevent accidental update
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubectl
+    - kubeadm
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+#bash completion for kubectl on control plane nodes
+- name: Install bash-completion 
+  apt:
+    name: bash-completion 
+    state: present
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+- name: Set the kubectl completion script
+  shell: |
+    kubectl completion bash | sudo tee /etc/bash_completion.d/kubectl > /dev/null
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+- name: Add kubectl alias
+  shell: |
+    echo 'alias k=kubectl' >>~/.bashrc
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+- name: Enable the alias
+  command: echo 'complete -o default -F __start_kubectl k' >>~/.bashrc
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+- name: Install jq
+  apt:
+    name: jq
+    state: present
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Get local IP
+  shell: ip --json a s | jq -r '.[] | if .ifname == "{{network_interface}}" then .addr_info[] | if .family == "inet" then .local else empty end else empty end'
+  register: local_ip
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: Add node IP to KUBELET_EXTRA_ARGS
+  lineinfile:
+    path: /etc/default/kubelet
+    line: "KUBELET_EXTRA_ARGS=--node-ip={{ local_ip.stdout }}"
+    create: true
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- name: K8S with kubeadm init on first master node
+  shell: kubeadm init --control-plane-endpoint={{ K8S_LB_IP }}:{{ K8S_LB_PORT }} --upload-certs --apiserver-cert-extra-sans={{ K8S_LB_IP }},{{K8S_LB_NAME}},{{ NODENAME_MASTER1 }},{{NODENAME_MASTER2}},{{NODENAME_MASTER3}} --pod-network-cidr={{ POD_CIDR }} --node-name {{ NODENAME_MASTER1 }} --ignore-preflight-errors Swap
+  register: kubeadm_init
+  when: inventory_hostname in groups['master_nodes'][0]
+
+#check init output in ansible stdout
+- ansible.builtin.debug:
+    var: kubeadm_init
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Create ~/.kube directory
+  file:
+    path: "$HOME/.kube/"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_id }}"
+    mode: 0755
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+- stat:
+    path: "$HOME/.kube/config"
+  register: p
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes] 
+
+- name: Create config file if it doesn't exist
+  file:
+    path: "$HOME/.kube/config"
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_id }}"
+    mode: 0644
+    state: '{{ "file" if  p.stat.exists else "touch" }}'
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+- name: Copy admin.conf to ~/.kube/config on first control plane 
+  command: cp -a /etc/kubernetes/admin.conf $HOME/.kube/config
+  when: inventory_hostname in groups['master_nodes'][0] 
+
+#install CNI calico after initialization of first control plane
+- name: Download Calico Tigera Operator manifest
+  command: "kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/tigera-operator.yaml"
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Download Calico Custom Resources manifest
+  command: "curl https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/custom-resources.yaml -O"
+  args:
+    chdir: "/var/tmp"
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Apply Calico Custom Resources
+  command: "kubectl create -f /var/tmp/custom-resources.yaml"
+  when: inventory_hostname in groups['master_nodes'][0]
+
+#add metrics server, so we can run commands like kubectl top node, kubectl top pod
+- name: Install Metrics Server
+  shell: kubectl apply -f https://raw.githubusercontent.com/techiescamp/kubeadm-scripts/main/manifests/metrics-server.yaml
+  when: inventory_hostname in groups['master_nodes'][0]
+
+#add other master and worker nodes to form HA cluster
+- name: Run kubeadm join command and save it into variable, also trim whitespaces if they exist
+  shell: |
+    kubeadm token create --print-join-command | awk '{$1=$1};NF'
+  register: kubeadm_join
+  when: inventory_hostname in groups['master_nodes'][0]
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+- set_fact:
+    kubeadm_join: "{{ kubeadm_join.stdout_lines[0] }}"
+    cacheable: true
+  when: inventory_hostname in groups['master_nodes'][0]
+  tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Debug kubeadm join command
+#   debug:
+#     var: hostvars[groups['master_nodes'][0]]['kubeadm_join']
+
+- name: Upload certs and register certificate key into variable, also trim whitespaces if they exist
+  shell: |
+    kubeadm init phase upload-certs --upload-certs | awk '{$1=$1};NF'
+  register: certificate_key
+  when: inventory_hostname in groups['master_nodes'][0]
+  tags: [add_new_master_nodes]
+
+- set_fact:
+    kubeadm_crt_key: "{{ certificate_key.stdout_lines[2] }}"
+    cacheable: true
+  when: inventory_hostname in groups['master_nodes'][0]
+  tags: [add_new_master_nodes]
+
+# - name: Generate certificate key for additional control-plane nodes
+#   shell: |
+#     kubeadm certs certificate-key | awk '{$1=$1};NF'
+#   register: certificate_key
+#   when: inventory_hostname in groups['master_nodes'][0]
+
+# - set_fact:
+#     kubeadm_crt_key: "{{ certificate_key.stdout_lines[0] }}"
+#     cacheable: true
+#   when: inventory_hostname in groups['master_nodes'][0]
+
+# - name: Debug kubeadm certificate join command
+#   debug:
+#     var: hostvars[groups['master_nodes'][0]]['kubeadm_crt_key']
+
+- name: Create kubeadm join script for other control-plane nodes
+  copy:
+    content: |
+      #!/bin/bash
+      {{ hostvars[groups['master_nodes'][0]]['kubeadm_join'] }} --control-plane --certificate-key {{ hostvars[groups['master_nodes'][0]]['kubeadm_crt_key'] }}
+    dest: /var/tmp/kubeadm_join_master.sh
+    mode: '0755'
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+  ignore_errors: true
+
+- name: Execute kubeadm join script on control plane nodes
+  shell: /var/tmp/kubeadm_join_master.sh
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+  ignore_errors: true
+
+- name: Copy admin.conf to ~/.kube/config on other control planes to be able to run kubectl commands
+  command: cp -a /etc/kubernetes/admin.conf $HOME/.kube/config
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+# - name: Join other master nodes to the cluster
+#   shell: |
+#     "{{ hostvars[groups['master_nodes'][0]]['kubeadm_join'] }} --control-plane --certificate-key {{ hostvars[groups['master_nodes'][0]]['kubeadm_crt_key'] }}"
+#   when: inventory_hostname in groups['master_nodes'][1:]
+
+- name: Create kubeadm join script for worker nodes
+  copy:
+    content: |
+      #!/bin/bash
+      {{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}
+    dest: /var/tmp/kubeadm_join_worker.sh
+    mode: '0755'
+  when: inventory_hostname in groups['worker_nodes'] or inventory_hostname in groups['new_worker_nodes']
+  tags: [add_new_worker_nodes]
+  ignore_errors: true
+
+- name: Execute kubeadm join script on worker nodes
+  shell: /var/tmp/kubeadm_join_worker.sh
+  when: inventory_hostname in groups['worker_nodes'] or inventory_hostname in groups['new_worker_nodes']
+  tags: [add_new_worker_nodes]
+  ignore_errors: true
+
+# - name: Join other worker nodes to the cluster
+#   shell: |
+#     "{{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}"
+#   when: inventory_hostname in groups['worker_nodes']

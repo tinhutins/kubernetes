@@ -1,0 +1,119 @@
+---
+#first we do upgrade on initial master node
+- name: Install new kubeadm version {{upgrade_k8s_packages_version}}
+  apt:
+    name: kubeadm={{upgrade_k8s_packages_version}}
+    state: present
+    allow_change_held_packages: true
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Apply kubeadm upgrade
+  command: sudo kubeadm upgrade apply {{upgrade_k8s_version}} -y
+  when: inventory_hostname in groups['master_nodes'][0]
+  any_errors_fatal: true
+
+#drain does cordon also
+- name: Drain node before upgrade
+  command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Install new kubelet and kubectl {{upgrade_k8s_packages_version}}
+  apt:
+    name: "{{ item }}={{upgrade_k8s_packages_version}}"
+    state: present
+    allow_change_held_packages: true
+  with_items:
+    - kubelet
+    - kubectl
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Add hold to kubernetes packages to prevent accidental update
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubectl
+    - kubeadm
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Issue daemon-reload to pick up config changes
+  ansible.builtin.systemd:
+    daemon_reload: yes
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Restart kubelet service
+  systemd:
+    name: kubelet
+    state: restarted
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Uncordon control plane node - make it schedulable back again
+  command: "kubectl uncordon {{ inventory_hostname }}"
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Get node information
+  shell: |
+    kubectl get nodes -o custom-columns='Name:.metadata.name,InternalIP:.status.addresses[0].address,Ready:.status.conditions[3].status' --no-headers | grep {{ inventory_hostname }}
+  register: kubectl_node_info
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Check if node is ready, only then continue to upgrade other control plane nodes
+  assert:
+    that:
+      - "'True' in kubectl_node_info.stdout_lines[0].split()[2]"
+    fail_msg: "Node is not in a ready state"
+  when: inventory_hostname in groups['master_nodes'][0]
+
+#upgrade other control plane nodes
+- name: Install new kubeadm version {{upgrade_k8s_packages_version}}
+  apt:
+    name: kubeadm={{upgrade_k8s_packages_version}}
+    state: present
+    allow_change_held_packages: true
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+
+- name: Apply kubeadm upgrade node
+  command: sudo kubeadm upgrade node
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+  any_errors_fatal: true
+
+#drain does cordon also
+- name: Drain node before upgrade
+  command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+
+- name: Install new kubelet and kubectl {{upgrade_k8s_packages_version}}
+  apt:
+    name: "{{ item }}={{upgrade_k8s_packages_version}}"
+    state: present
+    allow_change_held_packages: true
+  with_items:
+    - kubelet
+    - kubectl
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+
+- name: Add hold to kubernetes packages to prevent accidental update
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubectl
+    - kubeadm
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+
+- name: Issue daemon-reload to pick up config changes
+  ansible.builtin.systemd:
+    daemon_reload: yes
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+
+- name: Restart kubelet service
+  systemd:
+    name: kubelet
+    state: restarted
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+
+- name: Uncordon control plane node - make it schedulable back again
+  command: "kubectl uncordon {{ inventory_hostname }}"
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
