@@ -232,19 +232,39 @@
   command: cp -a /etc/kubernetes/admin.conf $HOME/.kube/config
   when: inventory_hostname in groups['master_nodes'][0] 
 
-#install CNI calico after initialization of first control plane
+#install CNI calico after initialization of first control plane, change CIDR if default one was changed during kubeadm init command!
+#https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart
 - name: Download Calico Tigera Operator manifest
-  command: "kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/tigera-operator.yaml"
+  command: "kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml"
   when: inventory_hostname in groups['master_nodes'][0]
+  run_once: true
 
 - name: Download Calico Custom Resources manifest
-  command: "curl https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/custom-resources.yaml -O"
+  command: "curl https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/custom-resources.yaml -O"
   args:
     chdir: "/var/tmp"
+  when: inventory_hostname in groups['master_nodes'][0]
+  run_once: true
+
+- name: Replace Calico CIDR with the one provided in the kubeadm init
+  ansible.builtin.replace:
+    path: "/var/tmp/custom-resources.yaml"
+    regexp: '^(.*cidr:\s*)192\.168\.0\.0/16$'
+    replace: '\g<1>{{ POD_CIDR }}'
   when: inventory_hostname in groups['master_nodes'][0]
 
 - name: Apply Calico Custom Resources
   command: "kubectl create -f /var/tmp/custom-resources.yaml"
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Wait for calico to be up and running
+  ansible.builtin.pause:
+    minutes: 1  
+
+#restart coredns just to be sure new cni is applied properly
+- name: Restart coredns deployment
+  shell: |
+    kubectl rollout restart -n kube-system deployment coredns
   when: inventory_hostname in groups['master_nodes'][0]
 
 #add metrics server, so we can run commands like kubectl top node, kubectl top pod
@@ -282,17 +302,6 @@
     cacheable: true
   when: inventory_hostname in groups['master_nodes'][0]
   tags: [add_new_master_nodes]
-
-# - name: Generate certificate key for additional control-plane nodes
-#   shell: |
-#     kubeadm certs certificate-key | awk '{$1=$1};NF'
-#   register: certificate_key
-#   when: inventory_hostname in groups['master_nodes'][0]
-
-# - set_fact:
-#     kubeadm_crt_key: "{{ certificate_key.stdout_lines[0] }}"
-#     cacheable: true
-#   when: inventory_hostname in groups['master_nodes'][0]
 
 # - name: Debug kubeadm certificate join command
 #   debug:

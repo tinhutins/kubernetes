@@ -54,9 +54,13 @@
   delegate_to: "{{ groups['master_nodes'][0] }}"
   when: inventory_hostname in groups['worker_nodes'][0]
 
+- name: Wait for upgrade to finish
+  ansible.builtin.pause:
+    minutes: 1  
+
 - name: Get node information
   shell: |
-    kubectl get nodes -o custom-columns='Name:.metadata.name,InternalIP:.status.addresses[0].address,Ready:.status.conditions[3].status' --no-headers | grep {{ inventory_hostname }}
+    kubectl get nodes -o custom-columns='Name:.metadata.name,InternalIP:.status.addresses[0].address,Ready:.status.conditions[4].status' --no-headers | grep {{ inventory_hostname }}
   register: kubectl_node_info
   delegate_to: "{{ groups['master_nodes'][0] }}"
   when: inventory_hostname in groups['worker_nodes'][0]
@@ -67,6 +71,7 @@
       - "'True' in kubectl_node_info.stdout_lines[0].split()[2]"
     fail_msg: "Node is not in a ready state"
   when: inventory_hostname in groups['worker_nodes'][0]
+  any_errors_fatal: true
 
 # upgrade other worker nodes
 - name: Install new kubeadm version {{upgrade_k8s_packages_version}}

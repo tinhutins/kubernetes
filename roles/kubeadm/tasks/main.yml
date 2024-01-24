@@ -1,9 +1,11 @@
 ---
-- name: Installing k8s services on all nodes and form a cluster
+#deployed using https://devopscube.com/setup-kubernetes-cluster-kubeadm/
+- name: Installing k8s services on all nodes and form a cluster, also using this play add new nodes to cluster
   import_tasks: install_services_and_form_cluster.yml
   when: inventory_hostname in groups['all']
   tags: [ 'never', 'install_services_and_form_cluster' ]
 
+#upgrades deployed using https://devopscube.com/upgrade-kubernetes-cluster-kubeadm/
 - name: Upgrade control plane nodes
   import_tasks: upgrade_control_plane_nodes.yml
   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']

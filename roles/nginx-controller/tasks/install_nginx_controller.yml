@@ -1,0 +1,96 @@
+---
+# Creat secret with custom signed certificate and key
+- name: Configure tls certificate
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: tino-ingress-certificate
+        namespace: default
+      type: tls
+      data:
+        tls.crt: "{{ tino_certificate.content | b64encode }}"
+        tls.key: "{{ tino_certificate_key.content | b64encode }}"
+
+# - name: Add ingress-nginx helm repository
+#   kubernetes.core.helm_repository:
+#     name: ingress-nginx
+#     repo_url: https://kubernetes.github.io/ingress-nginx
+
+# - name: Create helm configuration files from templates for ingress-nginx
+#   ansible.builtin.template:
+#     src: "{{ item }}.j2"
+#     dest: "/var/tmp/{{ item }}.yaml"
+#     owner: root
+#     group: root
+#     mode: u=rw,g=r,o=r
+#   loop:
+#     - ingress-nginx-values
+
+# - name: Deploy ingress-nginx Helm chart
+#   kubernetes.core.helm:
+#     name: ingress-nginx
+#     chart_ref: ingress-nginx/ingress-nginx
+#     chart_version: "{{ ingress_nginx_chart_version }}"
+#     namespace: ingress-nginx
+#     create_namespace: true
+#     update_repo_cache: true
+#     values_files: /var/tmp/ingress-nginx-values.yaml
+#     # values:
+#     #   extraArgs:
+#     #     default-ssl-certificate: "default/tino-ingress-certificate"
+#   become: true
+
+# - name: Wait for ingress-nginx to be up and running
+#   ansible.builtin.pause:
+#     minutes: 1
+
+# - name: Scale deployment ingress-nginx
+#   kubernetes.core.k8s_scale:
+#     api_version: v1
+#     kind: Deployment
+#     name: ingress-nginx-controller
+#     namespace: ingress-nginx
+#     replicas: 3
+#     wait_timeout: 90
+
+# - name: Wait for scale to be finished
+#   ansible.builtin.pause:
+#     minutes: 1  
+
+# #dirty fix for default ssl-certificate in ingress-controller because helm value doesn't work
+# - name: Fetch current deployment YAML
+#   shell: |
+#     kubectl get deployment ingress-nginx-controller -n ingress-nginx -o yaml > /var/tmp/ingress-nginx-controller.yaml
+#   register: deployment_yaml
+
+# - name: Add fact for default-ssl-certificate argument to deployment YAML
+#   set_fact:
+#     new_arg: "--default-ssl-certificate=default/tino-ingress-certificate"
+
+# - name: Update deployment YAML with new argument
+#   lineinfile:
+#     path: "/var/tmp/ingress-nginx-controller.yaml"
+#     line: "        - {{ new_arg }}"
+#     insertafter: "        - --validating-webhook-key=/usr/local/certificates/key"
+#   when: new_arg is defined
+
+# - name: Apply new controller yaml
+#   shell: |
+#     kubectl apply -f /var/tmp/ingress-nginx-controller.yaml
+
+# - name: Fetch new updated deployment YAML after applying in case it's needed later
+#   shell: |
+#     kubectl get deployment ingress-nginx-controller -n ingress-nginx -o yaml > /var/tmp/ingress-nginx-controller.yaml
+
+# #test deployment,svc and ingress
+# - name: Apply test nginx deploy,svc and ingress
+#   kubernetes.core.k8s:
+#     state: present
+#     namespace: default
+#     template: "templates/{{ item }}"
+#   with_items:
+#     - test-http-deploy-svc.j2 
+#     - test-http-ingress.j2

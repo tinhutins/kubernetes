@@ -15,9 +15,9 @@ k8s_packages_version:  1.27.6-00
 network_interface: ens160
 
 # K8S_LB_IP: 185.245.12.82
-K8S_LB_IP: 10.100.0.48
+K8S_LB_IP: 10.100.0.49
 K8S_LB_PORT: 6443
-K8S_LB_NAME: tinok8s-api-cratis-test-cdc.cratis.cc
+K8S_LB_NAME: tinok8s-api-cratis-test-cdc.tinotest.com
 NODENAME_MASTER1: test-vm1-master-cratis-prod-cdc
 NODENAME_MASTER2: test-vm2-master-cratis-prod-cdc
 NODENAME_MASTER3: test-vm3-master-cratis-prod-cdc
@@ -26,3 +26,7 @@ POD_CIDR: 10.244.0.0/16
 #upgrade kubeadm
 upgrade_k8s_version: v1.28.2
 upgrade_k8s_packages_version: 1.28.2-00
+
+#helm
+metallb_chart_version: 0.13.12
+ingress_nginx_chart_version: 4.9.0

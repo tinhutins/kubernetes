@@ -1,0 +1,42 @@
+---
+- name: Get kube-proxy ConfigMap YAML
+  shell: |
+    kubectl get configmap kube-proxy -n kube-system -o yaml
+  register: kube_proxy_configmap
+
+- name: Update strictARP setting
+  shell: |
+    echo '{{ kube_proxy_configmap.stdout | regex_replace('strictARP: false', 'strictARP: true') }}' | kubectl apply -f - -n kube-system
+  run_once: true
+
+- name: Restart kube-proxy DaemonSet
+  shell: |
+    kubectl -n kube-system rollout restart ds kube-proxy
+
+- name: Add metallb helm repository
+  kubernetes.core.helm_repository:
+    name: metallb
+    repo_url: https://metallb.github.io/metallb
+
+- name: Deploy metallb Helm chart
+  kubernetes.core.helm:
+    name: metallb
+    chart_ref: metallb/metallb
+    chart_version: "{{ metallb_chart_version }}"  # Replace with the desired version
+    release_namespace: metallb-system
+    create_namespace: true
+    update_repo_cache: true
+  become: true
+
+- name: Wait for metallb daemonset to be up and running
+  ansible.builtin.pause:
+    minutes: 2
+
+#apply metallb config with LB ip pool
+- name: Apply metallb config
+  kubernetes.core.k8s:
+    state: present
+    namespace: metallb-system
+    template: "templates/{{ item }}"
+  with_items:
+    - metallb_config.j2

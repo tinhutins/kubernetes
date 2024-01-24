@@ -1,0 +1,7 @@
+---
+#add metallb for LB services, and then later install ingress-nginx that uses that LB ip, we can than point our ingress for apps to this ingress-controller external LB ip provided by metallb, to get external access
+#https://medium.com/@tanmaybhandge/simplifying-service-exposure-in-on-premises-kubernetes-cluster-using-ingress-controller-39ed8cd9fa93
+- name: Install metallb
+  import_tasks: install_metallb.yml
+  when: inventory_hostname in groups['master_nodes'][0]
+  tags: [ 'never', 'install_metallb' ]

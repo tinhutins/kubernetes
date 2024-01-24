@@ -14,7 +14,7 @@
 
 #drain does cordon also
 - name: Drain node before upgrade
-  command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets
+  command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --force
   when: inventory_hostname in groups['master_nodes'][0]
 
 - name: Install new kubelet and kubectl {{upgrade_k8s_packages_version}}
@@ -52,9 +52,13 @@
   command: "kubectl uncordon {{ inventory_hostname }}"
   when: inventory_hostname in groups['master_nodes'][0]
 
+- name: Wait for upgrade to finish
+  ansible.builtin.pause:
+    minutes: 1  
+
 - name: Get node information
   shell: |
-    kubectl get nodes -o custom-columns='Name:.metadata.name,InternalIP:.status.addresses[0].address,Ready:.status.conditions[3].status' --no-headers | grep {{ inventory_hostname }}
+    kubectl get nodes -o custom-columns='Name:.metadata.name,InternalIP:.status.addresses[0].address,Ready:.status.conditions[4].status' --no-headers | grep {{ inventory_hostname }}
   register: kubectl_node_info
   when: inventory_hostname in groups['master_nodes'][0]
 
@@ -64,8 +68,9 @@
       - "'True' in kubectl_node_info.stdout_lines[0].split()[2]"
     fail_msg: "Node is not in a ready state"
   when: inventory_hostname in groups['master_nodes'][0]
+  any_errors_fatal: true
 
-#upgrade other control plane nodes
+#upgrade other control plane nodes when first one is ok
 - name: Install new kubeadm version {{upgrade_k8s_packages_version}}
   apt:
     name: kubeadm={{upgrade_k8s_packages_version}}
@@ -80,7 +85,7 @@
 
 #drain does cordon also
 - name: Drain node before upgrade
-  command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets
+  command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --force
   when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
 
 - name: Install new kubelet and kubectl {{upgrade_k8s_packages_version}}

@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-nginx-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "tino-demo-app.tinotest.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: http-svc
+            port:
+              number: 80
+  # tls:
+  # - hosts:
+  #     - "tino-demo-app.tinotest.com"
+  #   secretName: tino-ingress-certificate
