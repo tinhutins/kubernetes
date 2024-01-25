@@ -223,7 +223,7 @@
     path: "$HOME/.kube/config"
     owner: "{{ ansible_user_id }}"
     group: "{{ ansible_user_id }}"
-    mode: 0644
+    mode: 0600
     state: '{{ "file" if  p.stat.exists else "touch" }}'
   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
   tags: [add_new_master_nodes]
@@ -255,16 +255,6 @@
 
 - name: Apply Calico Custom Resources
   command: "kubectl create -f /var/tmp/custom-resources.yaml"
-  when: inventory_hostname in groups['master_nodes'][0]
-
-- name: Wait for calico to be up and running
-  ansible.builtin.pause:
-    minutes: 1  
-
-#restart coredns just to be sure new cni is applied properly
-- name: Restart coredns deployment
-  shell: |
-    kubectl rollout restart -n kube-system deployment coredns
   when: inventory_hostname in groups['master_nodes'][0]
 
 #add metrics server, so we can run commands like kubectl top node, kubectl top pod
@@ -355,3 +345,9 @@
 #   shell: |
 #     "{{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}"
 #   when: inventory_hostname in groups['worker_nodes']
+
+#restart coredns just to be sure new cni is applied properly
+- name: Restart coredns deployment
+  shell: |
+    kubectl rollout restart -n kube-system deployment coredns
+  when: inventory_hostname in groups['master_nodes'][0]

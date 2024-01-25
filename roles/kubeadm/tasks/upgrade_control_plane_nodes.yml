@@ -54,7 +54,7 @@
 
 - name: Wait for upgrade to finish
   ansible.builtin.pause:
-    minutes: 1  
+    minutes: 2
 
 - name: Get node information
   shell: |

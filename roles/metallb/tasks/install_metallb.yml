@@ -8,6 +8,7 @@
   shell: |
     echo '{{ kube_proxy_configmap.stdout | regex_replace('strictARP: false', 'strictARP: true') }}' | kubectl apply -f - -n kube-system
   run_once: true
+  ignore_errors: true
 
 - name: Restart kube-proxy DaemonSet
   shell: |
