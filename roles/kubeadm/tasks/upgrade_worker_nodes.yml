@@ -55,8 +55,10 @@
   when: inventory_hostname in groups['worker_nodes'][0]
 
 - name: Wait for upgrade to finish
-  ansible.builtin.pause:
-    minutes: 2
+  ansible.builtin.wait_for:
+    timeout: 120
+  delegate_to: localhost
+  when: inventory_hostname in groups['worker_nodes'][0]
 
 - name: Get node information
   shell: |
