@@ -23,6 +23,10 @@ NODENAME_MASTER2: test-vm2-master-cratis-prod-cdc
 NODENAME_MASTER3: test-vm3-master-cratis-prod-cdc
 POD_CIDR: 10.244.0.0/16
 
+#upgrade cri-o
+upgrade_k8s_version_cri_o: 1.28
+upgrade_cri_o_version: 1.28.2~0
+
 #upgrade kubeadm
 upgrade_k8s_version: v1.28.2
 upgrade_k8s_packages_version: 1.28.2-00
