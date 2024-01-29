@@ -301,7 +301,16 @@
   copy:
     content: |
       #!/bin/bash
-      {{ hostvars[groups['master_nodes'][0]]['kubeadm_join'] }} --control-plane --certificate-key {{ hostvars[groups['master_nodes'][0]]['kubeadm_crt_key'] }}
+
+      PORT=10250
+
+      # Check if the kubelet port is in use
+      if netstat -tulpn | grep ":$PORT " >/dev/null; then
+       logger "Port $PORT is in use, doing nothing on {{ inventory_hostname }}."
+      else
+        logger "Port $PORT is not in use, executing join command on {{ inventory_hostname }}."
+        {{ hostvars[groups['master_nodes'][0]]['kubeadm_join'] }} --control-plane --certificate-key {{ hostvars[groups['master_nodes'][0]]['kubeadm_crt_key'] }} 2>&1 | logger
+      fi
     dest: /var/tmp/kubeadm_join_master.sh
     mode: '0755'
   when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
@@ -328,7 +337,16 @@
   copy:
     content: |
       #!/bin/bash
-      {{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}
+
+      PORT=10250
+
+      # Check if the kubelet port is in use
+      if netstat -tulpn | grep ":$PORT " >/dev/null; then
+       logger "Port $PORT is in use, doing nothing on {{ inventory_hostname }}."
+      else
+        logger "Port $PORT is not in use, executing join command on {{ inventory_hostname }}."
+        {{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}} 2>&1 | logger
+      fi
     dest: /var/tmp/kubeadm_join_worker.sh
     mode: '0755'
   when: inventory_hostname in groups['worker_nodes'] or inventory_hostname in groups['new_worker_nodes']
