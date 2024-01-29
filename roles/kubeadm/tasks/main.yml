@@ -1,5 +1,8 @@
 ---
-#deployed using https://devopscube.com/setup-kubernetes-cluster-kubeadm/
+#deployed kubeadm k8s cluster using https://devopscube.com/setup-kubernetes-cluster-kubeadm/
+#inside this task there are tags for:
+#adding new master nodes : add_new_master_nodes
+#adding new worker nodes : add_new_worker_nodes
 - name: Installing k8s services on all nodes and form a cluster, also using this play add new nodes to cluster
   import_tasks: install_services_and_form_cluster.yml
   when: inventory_hostname in groups['all']
