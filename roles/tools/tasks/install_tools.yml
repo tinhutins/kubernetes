@@ -13,10 +13,11 @@
   environment:
     DESIRED_VERSION: "{{ helm_version | default('') }}"
 
-- name: Install pip3
+- name: Install pip3 and git
   package:
     name:
       - python3-pip
+      - git
     state: latest
 
 - name: Install pre-requisites pip packages

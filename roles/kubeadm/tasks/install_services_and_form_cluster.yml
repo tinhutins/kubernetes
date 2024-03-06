@@ -83,7 +83,7 @@
     state: present
   loop:
     - "cri-o={{ cri_o_version }}"
-    - "cri-o-runc={{ cri_o_runc_version }}"
+    - "cri-o-runc"
     - "cri-tools"
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
@@ -101,6 +101,151 @@
     state: started
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
+# #containerd install
+# - name: Download and unpack Containerd
+#   get_url:
+#     url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+#     dest: "/tmp/containerd.tar.gz"
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Extract Containerd
+#   unarchive:
+#     src: "/tmp/containerd.tar.gz"
+#     dest: "/usr/local"
+#     remote_src: yes
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Download runc
+#   get_url:
+#     url: "https://github.com/opencontainers/runc/releases/download/v{{ runc_version }}/runc.amd64"
+#     dest: "/usr/local/sbin/runc"
+#     mode: "0755"
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Create directory for CNI Plugins
+#   file:
+#     path: "/opt/cni/bin"
+#     state: directory
+
+# - name: Download CNI Plugins
+#   get_url:
+#     url: "https://github.com/containernetworking/plugins/releases/download/v{{ cni_plugins_version }}/cni-plugins-linux-amd64-v{{ cni_plugins_version }}.tgz"
+#     dest: "/tmp/cni-plugins.tgz"
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Extract CNI Plugins
+#   unarchive:
+#     src: "/tmp/cni-plugins.tgz"
+#     dest: "/opt/cni/bin"
+#     remote_src: yes
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Create Containerd configuration directory
+#   file:
+#     path: "/etc/containerd"
+#     state: directory
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# # #don't create this file because it messes kubelet config
+# # - name: Create empty config file 
+# #   file:
+# #     path: /etc/containerd/config.toml
+# #     state: touch
+
+# # - name: Generate default Containerd configuration
+# #   command: "containerd config default > /etc/containerd/config.toml"
+# #   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# # - name: Enable SystemdCgroup in Containerd configuration
+# #   replace:
+# #     path: "/etc/containerd/config.toml"
+# #     regexp: "systemd_cgroup = false"
+# #     replace: "systemd_cgroup = true"
+# #   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Download Containerd systemd service file
+#   get_url:
+#     url: "https://raw.githubusercontent.com/containerd/containerd/main/containerd.service"
+#     dest: "/etc/systemd/system/containerd.service"
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Reload systemd daemon
+#   systemd:
+#     daemon_reload: yes
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+# - name: Start and enable Containerd service
+#   service:
+#     name: containerd
+#     state: started
+#     enabled: yes
+#   tags: [add_new_master_nodes,add_new_worker_nodes]
+
+#configure kube-vip LB for control plane nodes
+- name: Create directory for kube-vip manifest
+  file:
+    path: "/etc/kubernetes/manifests/"
+    state: directory
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+- name: Copy  kube-vip YAML manifest
+  template:
+    src: kube-vip.j2
+    dest: /etc/kubernetes/manifests/kube-vip.yaml
+    mode: 0600
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+# - name: Get KVVERSION from GitHub releases
+#   uri:
+#     url: "https://api.github.com/repos/kube-vip/kube-vip/releases"
+#     return_content: yes
+#   register: github_response
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   tags: [add_new_master_nodes]
+
+# - name: Set environment variables
+#   set_fact:
+#     VIP: "{{ K8S_LB_IP }}"
+#     INTERFACE: "{{ network_interface }}"
+#     KVVERSION: "{{ github_response.json | json_query('[0].name') }}"
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   tags: [add_new_master_nodes]
+
+# - name: Pull kube-vip image
+#   shell: "ctr image pull ghcr.io/kube-vip/kube-vip:{{ KVVERSION }}"
+#   register: image_pull_result
+#   changed_when: image_pull_result.stdout.find('Image already exists') == -1
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   tags: [add_new_master_nodes]
+
+# - name: Set KUBE_VIP_COMMAND
+#   set_fact:
+#     KUBE_VIP_COMMAND: "ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:{{ KVVERSION }} vip /kube-vip"
+#   when: KVVERSION is defined and inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   tags: [add_new_master_nodes]
+      
+# - name: Generate kube-vip manifest
+#   shell: "{{ KUBE_VIP_COMMAND }} manifest pod --interface {{ INTERFACE }} --vip {{ VIP }} --controlplane --arp --services --leaderElection"
+#   register: kube_vip_manifest
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   tags: [add_new_master_nodes]
+
+# - name: Save kube-vip manifest
+#   copy:
+#     content: "{{ kube_vip_manifest.stdout }}"
+#     dest: "/etc/kubernetes/manifests/kube-vip.yaml"
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   tags: [add_new_master_nodes]
+
+# - name: Print kube-vip manifest
+#   ansible.builtin.debug:
+#     msg: "{{ kube_vip_manifest.stdout }}"
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   tags: [add_new_master_nodes]
+
+#main kubernetes section below
 - name: Install apt-transport-https, ca-certificates, curl
   apt:
     name: "{{ item }}"
@@ -110,16 +255,24 @@
     - apt-transport-https
     - ca-certificates
     - curl
+    - jq
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
-- name: Download GPG key for Kubernetes APT repository
-  shell: "curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://dl.k8s.io/apt/doc/apt-key.gpg"
-  tags: [add_new_master_nodes,add_new_worker_nodes]
+- name: Check if GPG key file already exists
+  stat:
+    path: /etc/apt/keyrings/kubernetes-apt-keyring-v{{ k8s_version }}.gpg
+  register: gpg_key_file
+  tags: [add_new_master_nodes, add_new_worker_nodes]
+
+- name: Download GPG key for Kubernetes APT repository if it doesn't exist
+  shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring-v{{ k8s_version }}.gpg
+  when: not gpg_key_file.stat.exists
+  tags: [add_new_master_nodes, add_new_worker_nodes]
 
 - name: Add Kubernetes APT repository
   lineinfile:
     path: /etc/apt/sources.list.d/kubernetes.list
-    line: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main"
+    line: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring-v{{k8s_version}}.gpg] https://pkgs.k8s.io/core:/stable:/v{{k8s_version}}/deb/ /"
     create: true
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
@@ -174,12 +327,6 @@
   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
   tags: [add_new_master_nodes]
 
-- name: Install jq
-  apt:
-    name: jq
-    state: present
-  tags: [add_new_master_nodes,add_new_worker_nodes]
-
 - name: Get local IP
   shell: ip --json a s | jq -r '.[] | if .ifname == "{{network_interface}}" then .addr_info[] | if .family == "inet" then .local else empty end else empty end'
   register: local_ip
@@ -192,8 +339,9 @@
     create: true
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
+#for cri-socket containerd or cri-o use one of this paths: unix:///var/run/containerd/containerd.sock, unix:///var/run/crio/crio.sock"
 - name: K8S with kubeadm init on first master node
-  shell: kubeadm init --control-plane-endpoint={{ K8S_LB_IP }}:{{ K8S_LB_PORT }} --upload-certs --apiserver-cert-extra-sans={{ K8S_LB_IP }},{{K8S_LB_NAME}},{{ NODENAME_MASTER1 }},{{NODENAME_MASTER2}},{{NODENAME_MASTER3}} --pod-network-cidr={{ POD_CIDR }} --node-name {{ NODENAME_MASTER1 }} --ignore-preflight-errors Swap
+  shell: kubeadm init --control-plane-endpoint={{ K8S_LB_IP }}:{{ K8S_LB_PORT }} --cri-socket unix:///var/run/crio/crio.sock --upload-certs --apiserver-cert-extra-sans={{ K8S_LB_IP }},{{K8S_LB_NAME}},{{ NODENAME_MASTER1 }},{{NODENAME_MASTER2}},{{NODENAME_MASTER3}} --pod-network-cidr={{ POD_CIDR }} --node-name {{ NODENAME_MASTER1 }} --ignore-preflight-errors Swap
   register: kubeadm_init
   when: inventory_hostname in groups['master_nodes'][0]
 
@@ -309,7 +457,7 @@
        logger "Port $PORT is in use, doing nothing on {{ inventory_hostname }}."
       else
         logger "Port $PORT is not in use, executing join command on {{ inventory_hostname }}."
-        {{ hostvars[groups['master_nodes'][0]]['kubeadm_join'] }} --control-plane --certificate-key {{ hostvars[groups['master_nodes'][0]]['kubeadm_crt_key'] }} 2>&1 | logger
+        {{ hostvars[groups['master_nodes'][0]]['kubeadm_join'] }} --cri-socket unix:///var/run/crio/crio.sock --control-plane --certificate-key {{ hostvars[groups['master_nodes'][0]]['kubeadm_crt_key'] }} 2>&1 | logger
       fi
     dest: /var/tmp/kubeadm_join_master.sh
     mode: '0755'
@@ -345,7 +493,7 @@
        logger "Port $PORT is in use, doing nothing on {{ inventory_hostname }}."
       else
         logger "Port $PORT is not in use, executing join command on {{ inventory_hostname }}."
-        {{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}} 2>&1 | logger
+        {{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}} --cri-socket unix:///var/run/crio/crio.sock 2>&1 | logger
       fi
     dest: /var/tmp/kubeadm_join_worker.sh
     mode: '0755'
@@ -359,10 +507,15 @@
   tags: [add_new_worker_nodes]
   ignore_errors: true
 
-# - name: Join other worker nodes to the cluster
-#   shell: |
-#     "{{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}"
-#   when: inventory_hostname in groups['worker_nodes']
+- name: Join other worker nodes to the cluster
+  shell: |
+    "{{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}"
+  when: inventory_hostname in groups['worker_nodes']
+
+- name: wait for pods to come up in calico-system before restarting coredns
+  shell: kubectl wait --namespace=calico-system --for=condition=Ready pods --selector k8s-app=calico-node --timeout=60s
+  any_errors_fatal: true
+  when: inventory_hostname in groups['master_nodes'][0]
 
 #restart coredns just to be sure new cni is applied properly
 - name: Restart coredns deployment

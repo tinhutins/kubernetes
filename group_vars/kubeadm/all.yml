@@ -3,19 +3,21 @@ reboot_post_reboot_delay: 15
 reboot_timeout: 600
 update_apt_cache: true
 
+#provide wanted k8s version
 ubuntu_version: xUbuntu_22.04
 k8s_version: 1.27
+k8s_packages_version:  1.27.11-1.1
 
+#crio version that follows k8s version
 cri_o_version: 1.27.2~0
 cri_o_runc_version: 1.1.9~1
 cri_tools_version: 1.25.0~0
 
-k8s_packages_version:  1.27.6-00
-
+#network variables
 network_interface: ens160
 
-# K8S_LB_IP: 185.245.12.82
-K8S_LB_IP: 10.100.0.36
+# k8s additional vars - in kubespray we used direct public IP for LB - K8S_LB_IP: 185.245.12.82, here we use internal kube-vip provided LB ip
+K8S_LB_IP: 10.100.0.249
 K8S_LB_PORT: 6443
 K8S_LB_NAME: tinok8s-api-cratis-test-cdc.tinotest.com
 NODENAME_MASTER1: test-vm1-master-cratis-prod-cdc
@@ -23,14 +25,30 @@ NODENAME_MASTER2: test-vm2-master-cratis-prod-cdc
 NODENAME_MASTER3: test-vm3-master-cratis-prod-cdc
 POD_CIDR: 10.244.0.0/16
 
-#upgrade cri-o
+#upgrade kubeadm k8s vars
+upgrade_k8s_version: 1.28
+upgrade_k8s_kubeadm_version: v1.28.7
+upgrade_k8s_packages_version: 1.28.7-1.1
+
+#upgrade cri-o vars that follows updated k8s version
 upgrade_k8s_version_cri_o: 1.28
 upgrade_cri_o_version: 1.28.2~0
 
-#upgrade kubeadm
-upgrade_k8s_version: v1.28.2
-upgrade_k8s_packages_version: 1.28.2-00
+#containerd
+containerd_version: 1.7.13
+runc_version: 1.1.12
+cni_plugins_version: 1.4.0
 
 #helm
 metallb_chart_version: 0.13.12
 ingress_nginx_chart_version: 4.9.0
+
+#rancher
+rancher_repo_version: "stable"
+# Enter rancher FQDN:
+rancher_cluster_fqdn: tino-rancher.tinotest.com
+
+#monitoring/logging
+prometheus_fqdn: tino-prometheus.tinotest.com
+grafana_fqdn: tino-grafana.tinotest.com
+alertmanager_fqdn: tino-alertmanager.tinotest.com

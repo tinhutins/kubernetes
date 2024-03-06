@@ -1,0 +1,99 @@
+---
+#fix for [FATAL] error running the jail command https://github.com/rancher/rancher/issues/41043
+- name: Ensure default_capabilities is configured in /etc/crio/crio.conf
+  blockinfile:
+    path: /etc/crio/crio.conf
+    block: |
+      default_capabilities = [
+          "MKNOD",
+          "CHOWN",
+          "DAC_OVERRIDE",
+          "FSETID",
+          "FOWNER",
+          "NET_RAW",
+          "SETGID",
+          "SETUID",
+          "SETPCAP",
+          "NET_BIND_SERVICE",
+          "SYS_CHROOT",
+          "KILL",
+      ]
+    marker: "# {mark} ANSIBLE MANAGED BLOCK"
+  when: inventory_hostname in groups['worker_nodes'] or inventory_hostname in groups['new_worker_nodes']
+
+- name: Restart crio service to take new config into account
+  service:
+    name: crio
+    state: restarted
+  when: inventory_hostname in groups['worker_nodes'] or inventory_hostname in groups['new_worker_nodes']
+
+- name: Add helm chart repository for rancher
+  kubernetes.core.helm_repository:
+    name: rancher-{{ rancher_repo_version}}
+    repo_url: "https://releases.rancher.com/server-charts/{{ rancher_repo_version }}"
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Create a namespace for rancher
+  kubernetes.core.k8s:
+    name: cattle-system
+    api_version: v1
+    kind: Namespace
+    state: present
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Install rancher with helm
+  kubernetes.core.helm:
+    name: rancher
+    chart_ref: "rancher-{{ rancher_repo_version }}/rancher"
+    # dodati stariju verziju po potrebi jer rancher ne prati latest kubernetes, dobimo inace error : chart requires kubeVersion: < 1.28.0-0 which is incompatible with Kubernetes v1.28.2
+    # chart_version: 2.5.17
+    namespace: cattle-system
+    values: 
+      hostname: "{{ rancher_cluster_fqdn }}"
+      bootstrapPassword: admin
+      tls: external
+      #ingress.tls.source: cratis-ingress-certificate
+    update_repo_cache: True
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Wait for rancher-helm deployment "True" on MinimumReplicasAvailable
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: rancher
+        namespace: cattle-system
+      spec:
+        paused: True
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+      reason: MinimumReplicasAvailable
+    wait_timeout: 240
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Patch rancher ingress (ingressClassName)
+  kubernetes.core.k8s:
+    state: patched
+    kind: Ingress
+    name: rancher
+    namespace: cattle-system
+    definition:
+      spec:
+        ingressClassName: nginx
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Ingress-nginx-controller deployment restart rollout
+  shell: |
+    kubectl rollout restart deployment -n ingress-nginx ingress-nginx-controller
+  when: inventory_hostname in groups['master_nodes'][0]
+
+- name: Show rancher webUI login information
+  debug:
+    msg:
+    -  "user: admin"
+    -  "password: admin"
+    -  "Rancher webUI: https://{{ rancher_cluster_fqdn }}"
+  when: inventory_hostname in groups['master_nodes'][0]

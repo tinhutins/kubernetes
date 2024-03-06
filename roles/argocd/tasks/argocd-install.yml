@@ -111,6 +111,10 @@
 - name: Sync app of apps
   shell: argocd app sync apps
 
+- name: Return default namespace into context
+  shell: |
+    kubectl config set-context --current --namespace=default
+
 - name: Show argocd login information
   debug:
     msg:
@@ -118,7 +122,3 @@
     -  "password: {{ argo_secret }}"
     -  "ArgoCD webUI: https://{{ argocd_fqdn }}"
     -  "ArgoCD gRPC: https://{{ argocd_grpc_fqdn }}"
-
-- name: Return default namespace into context
-  shell: |
-    kubectl config set-context --current --namespace=default

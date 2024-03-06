@@ -1,4 +1,21 @@
 ---
+#add new repo
+- name: Download GPG key for Kubernetes APT repository
+  shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{upgrade_k8s_version}}/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring-v{{upgrade_k8s_version}}.gpg
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+
+- name: Add Kubernetes APT repository
+  lineinfile:
+    path: /etc/apt/sources.list.d/kubernetes.list
+    line: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring-v{{upgrade_k8s_version}}.gpg] https://pkgs.k8s.io/core:/stable:/v{{upgrade_k8s_version}}/deb/ /"
+    create: true
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+
+- name: Update APT repositories
+  apt:
+    update_cache: yes
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+
 #first we do upgrade on initial master node
 - name: Install new kubeadm version {{upgrade_k8s_packages_version}}
   apt:
@@ -8,7 +25,7 @@
   when: inventory_hostname in groups['master_nodes'][0]
 
 - name: Apply kubeadm upgrade
-  command: sudo kubeadm upgrade apply {{upgrade_k8s_version}} -y
+  command: sudo kubeadm upgrade apply {{upgrade_k8s_kubeadm_version}} -y
   when: inventory_hostname in groups['master_nodes'][0]
   any_errors_fatal: true
 
