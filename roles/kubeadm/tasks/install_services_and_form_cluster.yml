@@ -82,7 +82,7 @@
     name: "{{ item }}"
     state: present
   loop:
-    - "cri-o={{ cri_o_version }}"
+    - "cri-o"
     - "cri-o-runc"
     - "cri-tools"
   tags: [add_new_master_nodes,add_new_worker_nodes]
@@ -507,13 +507,14 @@
   tags: [add_new_worker_nodes]
   ignore_errors: true
 
-- name: Join other worker nodes to the cluster
-  shell: |
-    "{{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}"
-  when: inventory_hostname in groups['worker_nodes']
+# - name: Join other worker nodes to the cluster
+#   shell: |
+#     "{{ hostvars[groups['master_nodes'][0]]['kubeadm_join']}}"
+#   when: inventory_hostname in groups['worker_nodes']
 
 - name: wait for pods to come up in calico-system before restarting coredns
-  shell: kubectl wait --namespace=calico-system --for=condition=Ready pods --selector k8s-app=calico-node --timeout=60s
+  shell: |
+    kubectl wait --namespace=calico-system --for=condition=Ready pods --selector k8s-app=calico-node --timeout=540s
   any_errors_fatal: true
   when: inventory_hostname in groups['master_nodes'][0]
 

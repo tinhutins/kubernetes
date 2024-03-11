@@ -42,6 +42,7 @@ cni_plugins_version: 1.4.0
 #helm
 metallb_chart_version: 0.13.12
 ingress_nginx_chart_version: 4.9.0
+longhorn_chart_version: 1.6.0
 
 #rancher
 rancher_repo_version: "stable"
