@@ -97,7 +97,7 @@
 - name: Add app of apps gitlab repository
   shell: |
     kubectl config set-context --current --namespace=argocd
-    argocd repo add {{ argocd_config_repo }} --username {{ argocd_user }} --password {{ argocd_token }}
+    argocd repo add {{ argocd_config_repo }} --username {{ argocd_user }} --password {{ argocd_token }} --upsert
 
 - name: Create app of apps
   shell: >

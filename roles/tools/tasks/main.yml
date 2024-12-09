@@ -1,5 +1,5 @@
 ---
 - name: Install tools
   import_tasks: install_tools.yml
-  when: inventory_hostname in groups['master_nodes'][0]
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
   tags: [ 'never', 'install_tools' ]

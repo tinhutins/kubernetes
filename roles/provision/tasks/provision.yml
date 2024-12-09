@@ -3,12 +3,43 @@
   timezone:
     name: CET
 
+- name: Disable CD-ROM repository if exists
+  ansible.builtin.command:
+    cmd: 'sed -i.bak -e "s/^deb cdrom:/#deb cdrom:/" /etc/apt/sources.list'
+
+- name: Set Hostname
+  hostname: 
+    name: "{{ inventory_hostname }}"
+    use: systemd
+
+#setup public DNS
+- name: Delete default resolv configuration
+  file:
+    path: /etc/systemd/resolved.conf
+    state: absent
+
+- name: Deploy new resolv.conf from template
+  template:
+   src: resolv.conf.j2
+   dest: /etc/systemd/resolved.conf
+   owner: root
+   group: root
+   mode: 0644
+   backup: yes
+
+- name: Restart resolved service
+  service:
+    name: systemd-resolved
+    enabled: true
+    state: restarted
+    
 - name: Update repository cache
   apt:
     update_cache: true
     cache_valid_time: 3600
     force_apt_get: true
-
+  ignore_errors: true
+  
 - name: Setup chrony
   apt:
     name: chrony
@@ -27,26 +58,39 @@
    group: root
    mode: 0644
    backup: yes
-  
-- name: Setup chrony service
+
+- name: Setup chronyd service
   service:
     name: chronyd
     enabled: true
     state: started
+  when: ansible_facts['lsb']['release'] >= "20.04"
+
+- name: Setup chrony service
+  service:
+    name: chrony
+    enabled: true
+    state: started
+  when: ansible_facts['lsb']['release'] <= "20.04"
+
+- name: Replace key ID 1 with 0 in chrony.keys if that exists so it doesn't make problem later with time sync
+  ansible.builtin.replace:
+    path: /etc/chrony/chrony.keys
+    regexp: '^1 '
+    replace: '0 '
 
 - name: Sync time
-  shell: "chronyc -a makestep"
+  shell: "chronyc -a  makestep"
 
-- name: Set authorized key for cratis devops team
+- name: Set authorized key for devops team
   authorized_key:
     user: root
     state: present
     key: "{{ item }}"
   with_file:
     - public_keys/tino-rsa
-    - public_keys/bastion-rsa
   tags: set_users_ssh_keys
-
+    
 # Debian Family upgrade
 - name: Update all packages to their latest version
   apt:
@@ -59,7 +103,7 @@
     upgrade: dist
   when: ansible_os_family == "Debian"
   
-#add needed packages and php repo for webservers
+#add needed packages
 - name: Install packages
   apt:
     name: "{{ packages }}"
