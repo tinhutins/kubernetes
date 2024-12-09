@@ -4,45 +4,46 @@ reboot_timeout: 600
 update_apt_cache: true
 
 #provide wanted k8s version
-ubuntu_version: xUbuntu_22.04
-k8s_version: 1.27
-k8s_packages_version:  1.27.11-1.1
+ubuntu_version: xUbuntu_24.04
+k8s_version: "1.30"
+k8s_packages_version:  1.30.7-1.1
+crictl_version: "v1.30.0"
 
-#crio version that follows k8s version
-cri_o_version: 1.27.2~0
-cri_o_runc_version: 1.1.9~1
-cri_tools_version: 1.25.0~0
+# #crio version that follows k8s version
+# cri_o_version: 1.31.3~0
+# cri_o_runc_version: 1.1.9~1
+# cri_tools_version: 1.31.1~0
 
 #network variables
-network_interface: ens160
+network_interface: ens33
 
-# k8s additional vars - in kubespray we used direct public IP for LB - K8S_LB_IP: 185.245.12.82, here we use internal kube-vip provided LB ip
-K8S_LB_IP: 10.100.0.249
+# k8s additional vars - in kubespray we used direct public available Cratis IP for LB - K8S_LB_IP: 185.245.12.82, here we use internal kube-vip provided LB ip
+K8S_LB_IP: 192.168.6.240
 K8S_LB_PORT: 6443
-K8S_LB_NAME: tinok8s-api-cratis-test-cdc.tinotest.com
-NODENAME_MASTER1: test-vm1-master-cratis-prod-cdc
-NODENAME_MASTER2: test-vm2-master-cratis-prod-cdc
-NODENAME_MASTER3: test-vm3-master-cratis-prod-cdc
+K8S_LB_NAME: tinok8s-api.tinotest.com
+NODENAME_MASTER1: k8s-master-1
+NODENAME_MASTER2: k8s-master-2
+NODENAME_MASTER3: k8s-master-3
 POD_CIDR: 10.244.0.0/16
 
 #upgrade kubeadm k8s vars
-upgrade_k8s_version: 1.28
+upgrade_k8s_version: "1.28"
 upgrade_k8s_kubeadm_version: v1.28.7
 upgrade_k8s_packages_version: 1.28.7-1.1
 
-#upgrade cri-o vars that follows updated k8s version
-upgrade_k8s_version_cri_o: 1.28
-upgrade_cri_o_version: 1.28.2~0
+# #upgrade cri-o vars that follows updated k8s version
+# upgrade_k8s_version_cri_o: 1.28
+# upgrade_cri_o_version: 1.28.2~0
 
-#containerd
-containerd_version: 1.7.13
-runc_version: 1.1.12
-cni_plugins_version: 1.4.0
+# #containerd
+# containerd_version: 1.7.24
+# runc_version: 1.2.2
+# cni_plugins_version: 1.6.1
 
 #helm
-metallb_chart_version: 0.13.12
-ingress_nginx_chart_version: 4.9.0
-longhorn_chart_version: 1.6.0
+metallb_chart_version: 0.14.8
+ingress_nginx_chart_version: 4.11.3
+longhorn_chart_version: 1.7.2
 
 #rancher
 rancher_repo_version: "stable"

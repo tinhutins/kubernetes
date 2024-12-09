@@ -1,8 +1,8 @@
 ---
 #fix for [FATAL] error running the jail command https://github.com/rancher/rancher/issues/41043
-- name: Ensure default_capabilities is configured in /etc/crio/crio.conf
+- name: Ensure default_capabilities is configured in /etc/crio/crio.conf or new crio path /etc/crio/crio.conf.d/10-crio.conf
   blockinfile:
-    path: /etc/crio/crio.conf
+    path: /etc/crio/crio.conf.d/10-crio.conf
     block: |
       default_capabilities = [
           "MKNOD",

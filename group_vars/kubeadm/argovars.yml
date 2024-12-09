@@ -1,10 +1,19 @@
 ---
 #argo version
-k8s_argocd_version: v2.9.5
+k8s_argocd_version: v2.13.1
+
+# # Enter argocd branch
+# k8s_argocd_branch: "tino-prod"
+# # Enter argocd repo
+# argocd_config_repo: "https://github.com/tinhutins/argo-k8s-python.git"
+
+#Test new applications in argocd
 # Enter argocd branch
-k8s_argocd_branch: "tino-prod"
+k8s_argocd_branch: "master"
 # Enter argocd repo
-argocd_config_repo: "https://github.com/tinhutins/argo-k8s-python.git"
+argocd_config_repo: "https://github.com/tinhutins/argocd-vote-deploy.git"
+
+
 # Enter argocd fqdn
 argocd_fqdn: "tino-argocd.tinotest.com"
 # Enter argocd grpc fqdn

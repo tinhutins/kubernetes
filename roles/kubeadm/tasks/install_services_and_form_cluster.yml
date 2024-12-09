@@ -47,45 +47,62 @@
     VERSION: "{{ k8s_version }}"
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
-- name: Add cri-o repositories that follows k8s version
-  blockinfile:
-    path: "/etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list"
-    create: yes
-    block: |
-      deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/{{ OS }}/ /
-  tags: [add_new_master_nodes,add_new_worker_nodes]
-
-- name: Add cri-o additional repositories
-  blockinfile:
-    path: "/etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}.list"
-    create: yes
-    block: |
-      deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/{{ VERSION }}/{{ OS }}/ /
-  tags: [add_new_master_nodes,add_new_worker_nodes]
-
-- name: Add GPG keys for CRI-O
-  shell: "curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
-  tags: [add_new_master_nodes,add_new_worker_nodes]
-
-- name: Add GPG keys for libcontainers
-  shell: "curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
-  tags: [add_new_master_nodes,add_new_worker_nodes]
-
-- name: Update apt repositories
+#new install for crio
+- name: Update apt repository cache
   apt:
     update_cache: yes
-  tags: [add_new_master_nodes,add_new_worker_nodes]
+  tags: [add_new_master_nodes, add_new_worker_nodes]
 
-#The cri-tools contain crictl, a CLI utility to interact with the containers created by the container runtime
-- name: Install cri-o, cri-o-runc, and cri-tools
+- name: Install required dependencies
   apt:
     name: "{{ item }}"
     state: present
+    update_cache: true 
   loop:
-    - "cri-o"
-    - "cri-o-runc"
-    - "cri-tools"
-  tags: [add_new_master_nodes,add_new_worker_nodes]
+    - software-properties-common
+    - gpg
+    - curl
+    - apt-transport-https
+    - ca-certificates
+  tags: [add_new_master_nodes, add_new_worker_nodes]
+
+- name: Add GPG key for CRI-O repository
+  ansible.builtin.shell: |
+    curl -fsSL https://pkgs.k8s.io/addons:/cri-o:/prerelease:/main/deb/Release.key |
+    gpg --dearmor -o /etc/apt/keyrings/cri-o-apt-keyring.gpg
+  tags: [add_new_master_nodes, add_new_worker_nodes]
+
+- name: Add CRI-O repository to apt sources
+  ansible.builtin.shell: |
+    echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.k8s.io/addons:/cri-o:/prerelease:/main/deb/ /" |
+    tee /etc/apt/sources.list.d/cri-o.list
+  tags: [add_new_master_nodes, add_new_worker_nodes]
+
+- name: Update apt repository cache again
+  apt:
+    update_cache: yes
+  tags: [add_new_master_nodes, add_new_worker_nodes]
+
+- name: Install CRI-O package
+  apt:
+    name: cri-o
+    state: present
+  tags: [add_new_master_nodes, add_new_worker_nodes]
+
+- name: Reload systemd and enable/start CRI-O service
+  systemd:
+    name: crio
+    enabled: yes
+    state: started
+  tags: [add_new_master_nodes, add_new_worker_nodes]
+
+- name: Install crictl (CLI utility)
+  ansible.builtin.shell: |
+    VERSION="{{ crictl_version }}"
+    wget https://github.com/kubernetes-sigs/cri-tools/releases/download/$VERSION/crictl-$VERSION-linux-amd64.tar.gz
+    sudo tar zxvf crictl-$VERSION-linux-amd64.tar.gz -C /usr/local/bin
+    rm -f crictl-$VERSION-linux-amd64.tar.gz
+  tags: [add_new_master_nodes, add_new_worker_nodes]
 
 - name: Reload systemd configurations
   systemd:
@@ -94,14 +111,7 @@
   tags: [add_new_master_nodes,add_new_worker_nodes]
   run_once: true
 
-- name: Enable cri-o service
-  systemd:
-    name: crio
-    enabled: yes
-    state: started
-  tags: [add_new_master_nodes,add_new_worker_nodes]
-
-# #containerd install
+# #containerd install  - if preffered over crio then uncomment this and comment crio 
 # - name: Download and unpack Containerd
 #   get_url:
 #     url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
@@ -181,71 +191,7 @@
 #     enabled: yes
 #   tags: [add_new_master_nodes,add_new_worker_nodes]
 
-#configure kube-vip LB for control plane nodes
-- name: Create directory for kube-vip manifest
-  file:
-    path: "/etc/kubernetes/manifests/"
-    state: directory
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-  tags: [add_new_master_nodes]
-
-- name: Copy  kube-vip YAML manifest
-  template:
-    src: kube-vip.j2
-    dest: /etc/kubernetes/manifests/kube-vip.yaml
-    mode: 0600
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-  tags: [add_new_master_nodes]
-
-# - name: Get KVVERSION from GitHub releases
-#   uri:
-#     url: "https://api.github.com/repos/kube-vip/kube-vip/releases"
-#     return_content: yes
-#   register: github_response
-#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-#   tags: [add_new_master_nodes]
-
-# - name: Set environment variables
-#   set_fact:
-#     VIP: "{{ K8S_LB_IP }}"
-#     INTERFACE: "{{ network_interface }}"
-#     KVVERSION: "{{ github_response.json | json_query('[0].name') }}"
-#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-#   tags: [add_new_master_nodes]
-
-# - name: Pull kube-vip image
-#   shell: "ctr image pull ghcr.io/kube-vip/kube-vip:{{ KVVERSION }}"
-#   register: image_pull_result
-#   changed_when: image_pull_result.stdout.find('Image already exists') == -1
-#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-#   tags: [add_new_master_nodes]
-
-# - name: Set KUBE_VIP_COMMAND
-#   set_fact:
-#     KUBE_VIP_COMMAND: "ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:{{ KVVERSION }} vip /kube-vip"
-#   when: KVVERSION is defined and inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-#   tags: [add_new_master_nodes]
-      
-# - name: Generate kube-vip manifest
-#   shell: "{{ KUBE_VIP_COMMAND }} manifest pod --interface {{ INTERFACE }} --vip {{ VIP }} --controlplane --arp --services --leaderElection"
-#   register: kube_vip_manifest
-#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-#   tags: [add_new_master_nodes]
-
-# - name: Save kube-vip manifest
-#   copy:
-#     content: "{{ kube_vip_manifest.stdout }}"
-#     dest: "/etc/kubernetes/manifests/kube-vip.yaml"
-#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-#   tags: [add_new_master_nodes]
-
-# - name: Print kube-vip manifest
-#   ansible.builtin.debug:
-#     msg: "{{ kube_vip_manifest.stdout }}"
-#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-#   tags: [add_new_master_nodes]
-
-#main kubernetes section below
+#main kubeadm kubernetes section below
 - name: Install apt-transport-https, ca-certificates, curl
   apt:
     name: "{{ item }}"
@@ -332,6 +278,10 @@
   register: local_ip
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
+- name: Debug kubeadm certificate join command
+  debug:
+    var: local_ip.stdout
+
 - name: Add node IP to KUBELET_EXTRA_ARGS
   lineinfile:
     path: /etc/default/kubelet
@@ -339,9 +289,34 @@
     create: true
   tags: [add_new_master_nodes,add_new_worker_nodes]
 
+#configure kube-vip LB for control plane nodes
+- name: Create directory for kube-vip manifest if it doesn't exists
+  file:
+    path: "/etc/kubernetes/manifests/"
+    state: directory
+  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
+#workaround for kube-vip from 1.29 kubernetes version https://github.com/kube-vip/kube-vip/issues/938#issuecomment-2348506673
+- name: Copy kube-vip YAML manifest for initial master node - change from 1.29 kubernetes
+  template:
+    src: kube-vip-initial-master-node.j2
+    dest: /etc/kubernetes/manifests/kube-vip.yaml
+    mode: 0600
+  when: inventory_hostname in groups['master_nodes'][0]
+  tags: [add_new_master_nodes]
+
+- name: Copy kube-vip YAML manifest for all other master nodes
+  template:
+    src: kube-vip-other-master-nodes.j2
+    dest: /etc/kubernetes/manifests/kube-vip.yaml
+    mode: 0600
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
+  tags: [add_new_master_nodes]
+
 #for cri-socket containerd or cri-o use one of this paths: unix:///var/run/containerd/containerd.sock, unix:///var/run/crio/crio.sock"
 - name: K8S with kubeadm init on first master node
-  shell: kubeadm init --control-plane-endpoint={{ K8S_LB_IP }}:{{ K8S_LB_PORT }} --cri-socket unix:///var/run/crio/crio.sock --upload-certs --apiserver-cert-extra-sans={{ K8S_LB_IP }},{{K8S_LB_NAME}},{{ NODENAME_MASTER1 }},{{NODENAME_MASTER2}},{{NODENAME_MASTER3}} --pod-network-cidr={{ POD_CIDR }} --node-name {{ NODENAME_MASTER1 }} --ignore-preflight-errors Swap
+  shell: kubeadm init --control-plane-endpoint={{ K8S_LB_IP }}:{{ K8S_LB_PORT }} --cri-socket unix:///var/run/crio/crio.sock --upload-certs --apiserver-cert-extra-sans={{ K8S_LB_IP }},{{K8S_LB_NAME}},{{ NODENAME_MASTER1 }},{{NODENAME_MASTER2}},{{NODENAME_MASTER3}} --pod-network-cidr={{ POD_CIDR }} --node-name {{ NODENAME_MASTER1 }} --ignore-preflight-errors Swap --v=5
   register: kubeadm_init
   when: inventory_hostname in groups['master_nodes'][0]
 
@@ -523,3 +498,10 @@
   shell: |
     kubectl rollout restart -n kube-system deployment coredns
   when: inventory_hostname in groups['master_nodes'][0]
+
+#add worker role to worker nodes instead of <none>
+- name: Add a label to the Kubernetes worker nodes
+  shell: kubectl label node {{ item }} node-role.kubernetes.io/worker=worker --overwrite
+  with_items: "{{ groups['worker_nodes'] + groups['new_worker_nodes'] }}"
+  when: inventory_hostname in groups['master_nodes'][0]
+  tags: [add_new_worker_nodes]
