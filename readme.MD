@@ -7,7 +7,9 @@ The process includes setting up a Kubeadm Kubernetes High Availability (HA) clus
 
 Virtual Machines: At least 4 virtual machines running Ubuntu 24.04.
 
-Ansible Vault Password: The vault password for Ansible is password.
+Create your own inventory file guided by examples in inventory folder.
+
+Ansible Vault Password: password.
 
 Self-Signed Certificates: Generate wildcard self-signed certificates for a test domain using the provided script (ssl.sh).
 
@@ -56,7 +58,13 @@ Import rootCA.crt into your browser.
 
 Add domain.crt and domain.key into the Ansible vault located at group_vars/kubeadm/ssl-vault.yml
 
-2. Create and activate a Python virtual environment:
+2. After that delete all the created certificate files inside this repo or back them up in some other folder, just don't leave them inside this repo!
+```bash
+    rm -rf cert.conf csr.conf rootCA.*
+    rm -rf your-desired-domain.*
+```
+
+3. Create and activate a Python virtual environment:
 ```bash
     python3 -m venv venv-kubeadm
     source venv-kubeadm/bin/activate
@@ -64,16 +72,69 @@ Add domain.crt and domain.key into the Ansible vault located at group_vars/kubea
     ansible --version
 ```
 
-3. Provision Nodes
+4. Provision Nodes
 
-Run the playbook to set up hostname, timezone etc:
+Run the provision playbook to set up hostnames, timezones, and other system configurations on desired nodes:
  ```bash
-    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini --tags provision -kK --ask-vault-pass
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  preinstall.yml --tags provision -kK --ask-vault-pass
 ```
 
-4. Provision Kubernetes Cluster
+5. Provision Kubernetes Cluster
 
 Run the playbook to set up the Kubernetes HA cluster:
  ```bash
-    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini --tags install_services_and_form_cluster -kK --ask-vault-pass
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_services_and_form_cluster --ask-vault-pass
+```
+
+For upgrade of the cluster use this playbook:
+ ```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags upgrade_control_plane_nodes --ask-vault-pass
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags upgrade_worker_nodes --ask-vault-pass
+```
+
+6. Add required tools like Helm to master nodes
+
+ ```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_tools --ask-vault-pass
+```
+
+7. Add MetalLB load balancing for services.  (update pool of addresses with your own in the group_vars/kubeadm/all.yml)
+
+ ```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_metallb --ask-vault-pass
+```
+
+8. Add Ingress-NGINX so that we can access our apps from outside of the cluster through metalLB provisioned LB IP
+ ```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_nginx_controller --ask-vault-pass
+```
+
+9. Add Ingress-NGINX so that we can access our apps from outside of the cluster through metalLB provisioned LB IP
+ ```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_nginx_controller --ask-vault-pass
+```
+
+10. Add Longhorn for persistent storage
+```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_longhorn --ask-vault-pass
+```
+
+11. Add argoCD into cluster check group_vars/kubeadm/argovars.yml for which repo and branches does it track:
+```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_argocd --ask-vault-pass
+```
+
+12. Add rancher:
+```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_rancher --ask-vault-pass
+```
+
+13. Add monitoring for whole setup:
+```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_k8s_prometheus_grafana_loki --ask-vault-pass
+```
+
+14. Clean Up - Once installation is complete remove venv.
+```bash
+   rm -rf venv-kubeadm
 ```
