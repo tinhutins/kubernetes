@@ -90,3 +90,11 @@
     template: "templates/{{ item }}"
   with_items:
     - longhorn-ingress.j2
+
+- name: Test if we can create pvc and pv
+  kubernetes.core.k8s:
+    state: present
+    namespace: longhorn-system
+    template: "templates/{{ item }}"
+  with_items:
+    - longhorn-test-volume.j2
