@@ -1,19 +1,79 @@
-vault password for ansible is: password
+## Kubeadm kubernetes Ecosystem Automation with Ansible
 
-this ansible automatization creates whole ecosystem around k8s.
+This project automates the creation of a complete Kubernetes ecosystem using Ansible. 
+The process includes setting up a Kubeadm Kubernetes High Availability (HA) cluster with various essential services and tools for managing and deploying applications.
 
-first manually create wildcard self-signed cert for some test domain using provided script.
+## Prerequisites
 
-just run ./ssl.sh "desired domain name" - import rootCA.crt into browser and domain.crt(WITHOUT rootCA.crt) and domain.key into ssl-vault.
+Virtual Machines: At least 4 virtual machines running Ubuntu 24.04.
 
-rest is done with ansible - create kubeadm HA cluster with kube-vip as LB for k8s api, metallb, nginx-controller, tools like helm, argocd, rancher, longhorn for storage.
+Ansible Vault Password: The vault password for Ansible is password.
 
-then in separate repo https://github.com/tinhutins/argo-k8s-python.git  setup automatic simple app deployment into this k8s using argoCD.
+Self-Signed Certificates: Generate wildcard self-signed certificates for a test domain using the provided script (ssl.sh).
 
-push into that repo is being done with GitlabCI pipeline running inside this repo https://github.com/tinhutins/ci-cd-without-jenkins where actual app is created, and whole ci/cd process.
+## Features
 
-UPGRADE:
-better is to use this repo  https://github.com/tinhutins/argocd-vote-deploy for more sophisticated app to be deployed in k8s  - more info here about app https://github.com/dockersamples/example-voting-app
+Kubernetes HA Cluster: Provisioned with kubeadm and kube-vip for API load balancing.
+
+MetalLB: Provides load balancing for services.
+
+Ingress-NGINX: Manages HTTP and HTTPS traffic.
+
+Storage: Longhorn is used for persistent storage.
+
+Tools:
+
+Helm
+
+ArgoCD
+
+Rancher
+
+## CI/CD Pipelines: 
+Integrates with separate repositories for automated application deployment:
+
+[CI/CD Without Jenkins](https://github.com/tinhutins/ci-cd-without-jenkins) - entire CI/CD process using a demo python application  using Github Actions.
+
+[voting-app-lfs261](https://github.com/tinhutins/voting-app-lfs261) - entire CI/CD process for Example Voting App.
+
+## Application Deployment:
+Integrates with separate repositories, for deploying example applications, such as the Demo Python application and Example Voting App, with ArgoCD inside k8s:
+
+[argo-k8s-python](https://github.com/tinhutins/argo-k8s-python) - Deploy Demo Python application using kustomize and ArgoCD in k8s.
+
+[argocd-vote-deploy](https://github.com/tinhutins/argocd-vote-deploy) -  Deploy Example Voting App using kustomize and ArgoCD in k8s.
 
 
-CI part is done with github actions in same repo where app code is hosted: https://github.com/tinhutins/voting-app-lfs261
+## Quick start
+1. Generate Wildcard Certificates
+
+Run the provided script to create wildcard self-signed certificates for your desired domain:
+```bash
+  create_self_signed_wildcard_cert/ssl-wildcard.sh "your-desired-domain"
+```
+
+Import rootCA.crt into your browser.
+
+Add domain.crt and domain.key into the Ansible vault located at group_vars/kubeadm/ssl-vault.yml
+
+2. Create and activate a Python virtual environment:
+```bash
+    python3 -m venv venv-kubeadm
+    source venv-kubeadm/bin/activate
+    pip install -r requirements.txt
+    ansible --version
+```
+
+3. Provision Nodes
+
+Run the playbook to set up hostname, timezone etc:
+ ```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini --tags provision -kK --ask-vault-pass
+```
+
+4. Provision Kubernetes Cluster
+
+Run the playbook to set up the Kubernetes HA cluster:
+ ```bash
+    ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini --tags install_services_and_form_cluster -kK --ask-vault-pass
+```
