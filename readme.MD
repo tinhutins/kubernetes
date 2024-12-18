@@ -136,5 +136,6 @@ For upgrade of the cluster use this playbook:
 
 14. Clean Up - Once installation is complete remove venv.
 ```bash
+   deactivate
    rm -rf venv-kubeadm
 ```
