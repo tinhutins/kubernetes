@@ -26,6 +26,9 @@ NODENAME_MASTER2: k8s-master-2
 NODENAME_MASTER3: k8s-master-3
 POD_CIDR: 10.244.0.0/16
 
+#metalLB
+metallb_poll: "192.168.6.241-192.168.6.250"
+
 #upgrade kubeadm k8s vars
 upgrade_k8s_version: "1.31"
 upgrade_k8s_kubeadm_version: v1.31.4
@@ -39,10 +42,6 @@ upgrade_k8s_packages_version: 1.31.4-1.1
 # containerd_version: 1.7.24
 # runc_version: 1.2.2
 # cni_plugins_version: 1.6.1
-
-
-#metalLB
-metallb_poll: "192.168.6.241-192.168.6.250"
 
 #helm
 metallb_chart_version: 0.14.8
