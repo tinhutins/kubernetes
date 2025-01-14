@@ -17,7 +17,7 @@
   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
 
 #first we do upgrade on initial master node
-- name: Install new kubeadm version {{upgrade_k8s_packages_version}}
+- name: Upgrade first control plane node - Install new kubeadm version {{upgrade_k8s_packages_version}}
   apt:
     name: kubeadm={{upgrade_k8s_packages_version}}
     state: present
@@ -26,8 +26,13 @@
 
 - name: Apply kubeadm upgrade
   command: sudo kubeadm upgrade apply {{upgrade_k8s_kubeadm_version}} -y
+  register: kubeadm_upgrade
   when: inventory_hostname in groups['master_nodes'][0]
   any_errors_fatal: true
+  
+- ansible.builtin.debug:
+    var: kubeadm_upgrade
+  when: inventory_hostname in groups['master_nodes'][0]
 
 #drain does cordon also
 - name: Drain node before upgrade
@@ -90,7 +95,7 @@
   any_errors_fatal: true
 
 #upgrade other control plane nodes when first one is ok
-- name: Install new kubeadm version {{upgrade_k8s_packages_version}}
+- name: Upgrade other control plane nodes - Install new kubeadm version {{upgrade_k8s_packages_version}}
   apt:
     name: kubeadm={{upgrade_k8s_packages_version}}
     state: present
@@ -99,8 +104,13 @@
 
 - name: Apply kubeadm upgrade node
   command: sudo kubeadm upgrade node
+  register: kubeadm_upgrade_node
   when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
   any_errors_fatal: true
+
+- ansible.builtin.debug:
+    var: kubeadm_upgrade_node
+  when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
 
 #drain does cordon also
 - name: Drain node before upgrade
@@ -142,55 +152,56 @@
   command: "kubectl uncordon {{ inventory_hostname }}"
   when: inventory_hostname in groups['master_nodes'][1:] or inventory_hostname in groups['new_master_nodes']
 
-#Optional upgrade also cri-o container runtime on master nodes, to follow new updated kubernetes version
-- name: Set OS and k8s VERSION variables
-  set_fact:
-    OS: "{{ ubuntu_version }}"
-    VERSION: "{{ upgrade_k8s_version_cri_o }}"
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+# #Optional upgrade also cri-o container runtime on master nodes, to follow new updated kubernetes version
+# #First check cri-o version maybe it is latest already - apt-cache policy cri-o
+# - name: Set OS and k8s VERSION variables
+#   set_fact:
+#     OS: "{{ ubuntu_version }}"
+#     VERSION: "{{ upgrade_k8s_version_cri_o }}"
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
 
-- name: Add cri-o additional repositories
-  blockinfile:
-    path: "/etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}.list"
-    create: yes
-    block: |
-      deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/{{ VERSION }}/{{ OS }}/ /
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+# - name: Add cri-o additional repositories
+#   blockinfile:
+#     path: "/etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}.list"
+#     create: yes
+#     block: |
+#       deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/{{ VERSION }}/{{ OS }}/ /
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
 
-- name: Add GPG keys for CRI-O
-  shell: "curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+# - name: Add GPG keys for CRI-O
+#   shell: "curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:{{ VERSION }}/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
 
-- name: Add GPG keys for libcontainers
-  shell: "curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+# - name: Add GPG keys for libcontainers
+#   shell: "curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/{{ OS }}/Release.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg add -"
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
 
-- name: Update apt repositories
-  apt:
-    update_cache: yes
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+# - name: Update apt repositories
+#   apt:
+#     update_cache: yes
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
 
-#The cri-tools contain crictl, a CLI utility to interact with the containers created by the container runtime
-- name: Install cri-o, cri-o-runc, and cri-tools
-  apt:
-    name: "{{ item }}"
-    state: present
-  loop:
-    - "cri-o={{ upgrade_cri_o_version }}"
-    - "cri-o-runc"
-    - "cri-tools"
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+# #The cri-tools contain crictl, a CLI utility to interact with the containers created by the container runtime
+# - name: Install cri-o, cri-o-runc, and cri-tools
+#   apt:
+#     name: "{{ item }}"
+#     state: present
+#   loop:
+#     - "cri-o={{ upgrade_cri_o_version }}"
+#     - "cri-o-runc"
+#     - "cri-tools"
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
 
-- name: Reload systemd configurations
-  systemd:
-    name: systemd-journald
-    state: restarted
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
-  run_once: true
+# - name: Reload systemd configurations
+#   systemd:
+#     name: systemd-journald
+#     state: restarted
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+#   run_once: true
 
-- name: Restart cri-o service after update
-  systemd:
-    name: crio
-    enabled: yes
-    state: restarted
-  when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
+# - name: Restart cri-o service after update
+#   systemd:
+#     name: crio
+#     enabled: yes
+#     state: restarted
+#   when: inventory_hostname in groups['master_nodes'] or inventory_hostname in groups['new_master_nodes']
