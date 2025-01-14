@@ -98,7 +98,7 @@ For upgrade of the cluster use this playbook:
 ```
 
 10. Add argoCD into cluster check group_vars/kubeadm/argovars.yml for which repo and branches does it track:
-    More info about argoCD and how it operates here: [#additional-info-about-argocd]
+    More info about argoCD and how it operates here: [additional-info-about-argocd](https://github.com/tinhutins/kubernetes?tab=readme-ov-file#additional-info-about-argocd)
 ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_argocd --ask-vault-pass
 ```
