@@ -91,10 +91,11 @@
   with_items:
     - longhorn-ingress.j2
 
-- name: Test if we can create pvc and pv
+- name: Test if we can create pvc and pv and pod that uses this storage
   kubernetes.core.k8s:
     state: present
-    namespace: longhorn-system
+    namespace: default
     template: "templates/{{ item }}"
   with_items:
     - longhorn-test-volume.j2
+    - longhorn-test-pod.j2
