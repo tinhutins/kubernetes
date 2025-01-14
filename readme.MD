@@ -38,7 +38,7 @@ Import rootCA.crt into your browser.
 
 Add domain.crt and domain.key into the Ansible vault located at group_vars/kubeadm/ssl-vault.yml
 
-#### 2. Clean-up repo
+#### 2. Clean-up generated certificates from repo
 After that delete all the created certificate files inside this repo or back them up in some other folder, just don't leave them inside this repo!
 ```bash
     rm -rf cert.conf csr.conf rootCA.*
@@ -64,7 +64,7 @@ Run the pre-installation playbook to configure system settings like hostnames, t
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_services_and_form_cluster --ask-vault-pass
 ```
 
-For upgrade of the cluster use this playbook:
+#####  5.1 For upgrade of the cluster use this playbook:
  ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags upgrade_control_plane_nodes --ask-vault-pass
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags upgrade_worker_nodes --ask-vault-pass
