@@ -64,7 +64,7 @@ Run the pre-installation playbook to configure system settings like hostnames, t
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_services_and_form_cluster --ask-vault-pass
 ```
 
-#####  5.1 For upgrade of the cluster use this playbook:
+####  5.1 For upgrade of the cluster use this playbook:
  ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags upgrade_control_plane_nodes --ask-vault-pass
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags upgrade_worker_nodes --ask-vault-pass
