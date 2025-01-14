@@ -27,7 +27,7 @@ It sets up a High Availability (HA) Kubernetes cluster along with essential tool
 
 ## Quick Start
 
-### 1. Generate Wildcard Certificates (Optional)
+#### 1. Generate Wildcard Certificates (Optional)
 
 Run the provided script to create wildcard self-signed certificates for your desired domain:
 ```bash
@@ -38,13 +38,14 @@ Import rootCA.crt into your browser.
 
 Add domain.crt and domain.key into the Ansible vault located at group_vars/kubeadm/ssl-vault.yml
 
-#### 2. Clean-up repo -  After that delete all the created certificate files inside this repo or back them up in some other folder, just don't leave them inside this repo!
+#### 2. Clean-up repo
+After that delete all the created certificate files inside this repo or back them up in some other folder, just don't leave them inside this repo!
 ```bash
     rm -rf cert.conf csr.conf rootCA.*
     rm -rf your-desired-domain.*
 ```
 
-3. Create and activate a Python virtual environment:
+#### 3. Create and activate a Python virtual environment:
 ```bash
     python3 -m venv venv-kubeadm
     source venv-kubeadm/bin/activate
@@ -52,12 +53,13 @@ Add domain.crt and domain.key into the Ansible vault located at group_vars/kubea
     ansible --version
 ```
 
-4. Provision the Nodes - Run the pre-installation playbook to configure system settings like hostnames, timezones, and prerequisites on the target nodes:
+#### 4. Provision the Nodes
+Run the pre-installation playbook to configure system settings like hostnames, timezones, and prerequisites on the target nodes:
  ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  preinstall.yml --tags provision -kK --ask-vault-pass
 ```
 
-5. Provision Kubeadm Kubernetes Cluster - automated process using Ansible:
+#### 5. Provision Kubeadm Kubernetes Cluster - automated process using Ansible:
  ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_services_and_form_cluster --ask-vault-pass
 ```
@@ -68,45 +70,49 @@ For upgrade of the cluster use this playbook:
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags upgrade_worker_nodes --ask-vault-pass
 ```
 
-6. Add required tools like Helm to master nodes:
+#### 6. Add required tools like Helm to master nodes:
 
  ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_tools --ask-vault-pass
 ```
 
-7. Add MetalLB load balancing for services.  (update pool of addresses with your own desired values in the group_vars/kubeadm/all.yml):
+#### 7. Add MetalLB load balancing for services.  
+Update pool of addresses with your own desired values in the group_vars/kubeadm/all.yml:
 
  ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_metallb --ask-vault-pass
 ```
 
-8. Add Ingress-NGINX so that we can access our apps from outside of the cluster through metalLB provisioned LB IP:
+#### 8. Add Ingress-NGINX 
+Enable access to applications outside the cluster through metalLB provisioned LB IP::
  ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_nginx_controller --ask-vault-pass
 ```
 
-9. Add Longhorn for persistent storage:
+#### 9. Add Longhorn for persistent storage:
 ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_longhorn --ask-vault-pass
 ```
 
-10. Add argoCD into cluster check group_vars/kubeadm/argovars.yml for which repo and branches does it track (esentially which app does it deploy):
-    More info about argoCD and how it operates here: [additional-info-about-argocd](https://github.com/tinhutins/kubernetes?tab=readme-ov-file#additional-info-about-argocd)
+#### 10. Add argoCD for gitops.
+Configure ArgoCD for GitOps. Refer to group_vars/kubeadm/argovars.yml for repo details:
+More info about argoCD and how it operates here: [additional-info-about-argocd](https://github.com/tinhutins/kubernetes?tab=readme-ov-file#additional-info-about-argocd)
 ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_argocd --ask-vault-pass
 ```
 
-11. Add rancher on top of k8s if needed GUI (For GUI-based management, Lens (The Kubernetes IDE) is recommended.)":
+#### 11. Add rancher on top of k8s if needed GUI 
+For GUI-based management, Lens (The Kubernetes IDE) is recommended
 ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_rancher --ask-vault-pass
 ```
 
-12. Add monitoring with prometheus and grafana + logging with Loki  for this setup:
+#### 12. Install Prometheus, Grafana, and Loki for monitoring and logging:
 ```bash
     ansible-playbook -i inventory/inventory_vmware_workstation_local_lab.ini  postinstall.yml --tags install_k8s_prometheus_grafana_loki --ask-vault-pass
 ```
 
-13. Clean Up - Once installation is complete remove venv.
+#### 13. Clean Up - Once installation is complete remove venv.
 ```bash
    deactivate
    rm -rf venv-kubeadm
