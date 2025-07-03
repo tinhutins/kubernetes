@@ -5,9 +5,9 @@ update_apt_cache: true
 
 #provide wanted k8s version
 ubuntu_version: xUbuntu_24.04
-k8s_version: "1.30"
-k8s_packages_version: 1.30.8-1.1                  
-crictl_version: "v1.30.0"
+k8s_version: "1.31"
+k8s_packages_version: 1.31.10-1.1             
+crictl_version: "v1.31.0"
 
 # #crio version that follows k8s version
 # cri_o_version: 1.31.3~0
@@ -30,9 +30,9 @@ POD_CIDR: 10.244.0.0/16
 metallb_poll: "192.168.6.241-192.168.6.250"
 
 #upgrade kubeadm k8s vars
-upgrade_k8s_version: "1.31"
-upgrade_k8s_kubeadm_version: v1.31.4
-upgrade_k8s_packages_version: 1.31.4-1.1
+upgrade_k8s_version: "1.32"
+upgrade_k8s_kubeadm_version: v1.32.6
+upgrade_k8s_packages_version: 1.32.6-1.1
 
 # #upgrade cri-o vars that follows updated k8s version
 # upgrade_k8s_version_cri_o: 1.28
